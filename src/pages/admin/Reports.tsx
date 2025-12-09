@@ -4,6 +4,7 @@ import { classActivities, subjectLegends } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { Search, Download, Calendar, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
 const Reports = () => {
   const [startDate, setStartDate] = useState('2025-04-01');
@@ -21,7 +22,42 @@ const Reports = () => {
   };
 
   const handleExport = () => {
-    toast.success('Report exported to Excel successfully!');
+    // Prepare data for Excel
+    const exportData = classActivities.map((activity) => {
+      const date = new Date(activity.date);
+      return {
+        'Date': date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }),
+        'Time': activity.time,
+        'Batch': activity.batch,
+        'Instructor': activity.teacherName,
+        'Topic': activity.topic,
+        'Hours': 1,
+      };
+    });
+
+    // Create worksheet
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 30 }, // Date
+      { wch: 15 }, // Time
+      { wch: 15 }, // Batch
+      { wch: 25 }, // Instructor
+      { wch: 40 }, // Topic
+      { wch: 10 }, // Hours
+    ];
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Instructor Report');
+
+    // Generate filename with date range
+    const filename = `Instructor_Report_${startDate}_to_${endDate}.xlsx`;
+
+    // Download file
+    XLSX.writeFile(workbook, filename);
+    toast.success('Report downloaded successfully!');
   };
 
   const instructors = Array.from(new Set(subjectLegends.filter(l => l.name.includes('Mr.') || l.name.includes('Mrs.') || l.name.includes('Ms.')).map(l => l.name)));
