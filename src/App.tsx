@@ -18,11 +18,14 @@ import Attendance from "./pages/admin/Attendance";
 import Timetable from "./pages/admin/Timetable";
 import Reports from "./pages/admin/Reports";
 
-// Teacher Pages
-import TeacherDashboard from "./pages/teacher/TeacherDashboard";
-import TeacherClasses from "./pages/teacher/TeacherClasses";
-import TeacherAttendance from "./pages/teacher/TeacherAttendance";
-import TeacherReports from "./pages/teacher/TeacherReports";
+// Staff Pages (HOD, Class Coordinator, Subject Incharge)
+import StaffDashboard from "./pages/staff/StaffDashboard";
+import StaffStudents from "./pages/staff/StaffStudents";
+import StaffTeachers from "./pages/staff/StaffTeachers";
+import StaffAttendance from "./pages/staff/StaffAttendance";
+import StaffTimetable from "./pages/staff/StaffTimetable";
+import StaffReports from "./pages/staff/StaffReports";
+import StaffClasses from "./pages/staff/StaffClasses";
 
 // Student Pages
 import StudentDashboard from "./pages/student/StudentDashboard";
@@ -44,7 +47,7 @@ const App = () => (
             {/* Login */}
             <Route path="/" element={<Login />} />
             
-            {/* Admin Routes */}
+            {/* Admin Routes - Full Access */}
             <Route path="/admin" element={<DashboardLayout />}>
               <Route index element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
@@ -56,16 +59,19 @@ const App = () => (
               <Route path="reports" element={<Reports />} />
             </Route>
 
-            {/* Teacher Routes */}
-            <Route path="/teacher" element={<DashboardLayout />}>
-              <Route index element={<Navigate to="/teacher/dashboard" replace />} />
-              <Route path="dashboard" element={<TeacherDashboard />} />
-              <Route path="classes" element={<TeacherClasses />} />
-              <Route path="attendance" element={<TeacherAttendance />} />
-              <Route path="reports" element={<TeacherReports />} />
+            {/* Staff Routes - HOD, Class Coordinator, Subject Incharge */}
+            <Route path="/staff" element={<DashboardLayout />}>
+              <Route index element={<Navigate to="/staff/dashboard" replace />} />
+              <Route path="dashboard" element={<StaffDashboard />} />
+              <Route path="students" element={<StaffStudents />} />
+              <Route path="teachers" element={<StaffTeachers />} />
+              <Route path="attendance" element={<StaffAttendance />} />
+              <Route path="timetable" element={<StaffTimetable />} />
+              <Route path="reports" element={<StaffReports />} />
+              <Route path="classes" element={<StaffClasses />} />
             </Route>
 
-            {/* Student Routes */}
+            {/* Student Routes - Individual Access Only */}
             <Route path="/student" element={<DashboardLayout />}>
               <Route index element={<Navigate to="/student/dashboard" replace />} />
               <Route path="dashboard" element={<StudentDashboard />} />

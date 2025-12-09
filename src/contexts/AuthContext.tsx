@@ -22,26 +22,53 @@ const mockUsers: Record<string, { password: string; user: User }> = {
       name: 'Administrator',
     }
   },
-  'teacher': {
-    password: 'teacher123',
+  'hod': {
+    password: 'hod123',
     user: {
       id: '2',
-      username: 'teacher',
-      email: 'sreedhar@nttf.co.in',
-      role: 'teacher',
+      username: 'hod',
+      email: 'hod.cp09@nttf.co.in',
+      role: 'hod',
+      name: 'Dr. Ramesh Kumar',
+      department: 'CP09', // HOD has access to CP09 department only
+    }
+  },
+  'coordinator': {
+    password: 'coord123',
+    user: {
+      id: '3',
+      username: 'coordinator',
+      email: 'coordinator@nttf.co.in',
+      role: 'class_coordinator',
       name: 'Mr. Sreedhar E',
       department: 'CP09',
+      semester: 4,
+      section: 'A', // Class Coordinator has access to 4th semester Section A
+    }
+  },
+  'subjectincharge': {
+    password: 'subject123',
+    user: {
+      id: '4',
+      username: 'subjectincharge',
+      email: 'subject@nttf.co.in',
+      role: 'subject_incharge',
+      name: 'Mrs. Priya S',
+      department: 'CP09',
+      subjects: ['PROGRAMMING', 'DATA STRUCTURES'], // Subject Incharge has access to these subjects
     }
   },
   'student': {
     password: 'student123',
     user: {
-      id: '3',
+      id: '5',
       username: 'student',
       email: 'student@nttf.co.in',
       role: 'student',
       name: 'Rithick Roshan',
       department: 'CP09',
+      semester: 4,
+      section: 'A',
     }
   }
 };

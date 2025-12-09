@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'teacher' | 'student';
+export type UserRole = 'admin' | 'hod' | 'class_coordinator' | 'subject_incharge' | 'student';
 
 export interface User {
   id: string;
@@ -6,7 +6,10 @@ export interface User {
   email: string;
   role: UserRole;
   name: string;
-  department?: string;
+  department?: string; // For HOD - their department
+  semester?: number; // For Class Coordinator - their assigned semester
+  section?: 'A' | 'B'; // For Class Coordinator - their assigned section
+  subjects?: string[]; // For Subject Incharge - their allocated subjects
 }
 
 export interface Department {
