@@ -40,7 +40,14 @@ const Login = () => {
     setIsLoading(false);
 
     if (result.success) {
-      navigate(`/${role}/dashboard`);
+      // Redirect based on role
+      if (role === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (role === 'hod' || role === 'class_coordinator' || role === 'subject_incharge') {
+        navigate('/staff/dashboard');
+      } else {
+        navigate('/student/dashboard');
+      }
     } else {
       setError(result.error || 'Login failed');
     }
@@ -80,9 +87,11 @@ const Login = () => {
                 onChange={(e) => setRole(e.target.value as UserRole)}
                 className="input-field appearance-none cursor-pointer"
               >
-                <option value="">Select your role</option>
+              <option value="">Select your role</option>
                 <option value="admin">Administrator</option>
-                <option value="teacher">Teacher / Staff</option>
+                <option value="hod">HOD (Course Head)</option>
+                <option value="class_coordinator">Class Coordinator</option>
+                <option value="subject_incharge">Subject Incharge</option>
                 <option value="student">Student</option>
               </select>
             </div>
@@ -148,7 +157,9 @@ const Login = () => {
             <p className="text-xs text-muted-foreground mb-2 font-medium">Demo Credentials:</p>
             <div className="space-y-1 text-xs text-muted-foreground">
               <p>Admin: admin / admin123</p>
-              <p>Teacher: teacher / teacher123</p>
+              <p>HOD: hod / hod123</p>
+              <p>Coordinator: coordinator / coord123</p>
+              <p>Subject Incharge: subjectincharge / subject123</p>
               <p>Student: student / student123</p>
             </div>
           </div>

@@ -26,11 +26,28 @@ const adminNavItems: NavItem[] = [
   { label: 'Reports / MIS', path: '/admin/reports', icon: <FileText className="w-5 h-5" /> },
 ];
 
-const teacherNavItems: NavItem[] = [
-  { label: 'Dashboard', path: '/teacher/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-  { label: 'My Classes', path: '/teacher/classes', icon: <Calendar className="w-5 h-5" /> },
-  { label: 'Attendance', path: '/teacher/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
-  { label: 'Reports', path: '/teacher/reports', icon: <FileText className="w-5 h-5" /> },
+const hodNavItems: NavItem[] = [
+  { label: 'Dashboard', path: '/staff/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+  { label: 'Students', path: '/staff/students', icon: <GraduationCap className="w-5 h-5" /> },
+  { label: 'Teachers', path: '/staff/teachers', icon: <Users className="w-5 h-5" /> },
+  { label: 'Attendance', path: '/staff/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
+  { label: 'Timetable', path: '/staff/timetable', icon: <Calendar className="w-5 h-5" /> },
+  { label: 'Reports', path: '/staff/reports', icon: <FileText className="w-5 h-5" /> },
+];
+
+const coordinatorNavItems: NavItem[] = [
+  { label: 'Dashboard', path: '/staff/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+  { label: 'Students', path: '/staff/students', icon: <GraduationCap className="w-5 h-5" /> },
+  { label: 'Attendance', path: '/staff/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
+  { label: 'Timetable', path: '/staff/timetable', icon: <Calendar className="w-5 h-5" /> },
+  { label: 'Reports', path: '/staff/reports', icon: <FileText className="w-5 h-5" /> },
+];
+
+const subjectInchargeNavItems: NavItem[] = [
+  { label: 'Dashboard', path: '/staff/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+  { label: 'My Classes', path: '/staff/classes', icon: <Calendar className="w-5 h-5" /> },
+  { label: 'Attendance', path: '/staff/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
+  { label: 'Reports', path: '/staff/reports', icon: <FileText className="w-5 h-5" /> },
 ];
 
 const studentNavItems: NavItem[] = [
@@ -46,12 +63,27 @@ const Sidebar = () => {
     switch (user?.role) {
       case 'admin':
         return adminNavItems;
-      case 'teacher':
-        return teacherNavItems;
+      case 'hod':
+        return hodNavItems;
+      case 'class_coordinator':
+        return coordinatorNavItems;
+      case 'subject_incharge':
+        return subjectInchargeNavItems;
       case 'student':
         return studentNavItems;
       default:
         return [];
+    }
+  };
+
+  const getRoleLabel = (): string => {
+    switch (user?.role) {
+      case 'admin': return 'Administrator';
+      case 'hod': return `HOD - ${user?.department || ''}`;
+      case 'class_coordinator': return `Coordinator - Sem ${user?.semester} ${user?.section}`;
+      case 'subject_incharge': return 'Subject Incharge';
+      case 'student': return 'Student';
+      default: return '';
     }
   };
 
@@ -104,7 +136,7 @@ const Sidebar = () => {
           <span>Logout</span>
         </button>
         <p className="text-xs text-muted-foreground mt-4 px-2">
-          Logged in as {user?.role === 'admin' ? 'Administrator' : user?.role === 'teacher' ? 'Teacher' : 'Student'}
+          Logged in as {getRoleLabel()}
         </p>
       </div>
     </aside>
