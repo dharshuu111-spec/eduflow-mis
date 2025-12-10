@@ -1,16 +1,44 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
-import { departments, students as allStudents } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { Plus, Search, Users, ChevronRight, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import { Student } from '@/types';
 
 const Students = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedSection, setSelectedSection] = useState<'A' | 'B' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [departmentsRes, studentsRes] = await Promise.all([
+          fetch('http://localhost:3001/api/departments'),
+          fetch('http://localhost:3001/api/students')
+        ]);
+
+        const departmentsData = await departmentsRes.json();
+        const studentsData = await studentsRes.json();
+
+        setDepartments(departmentsData);
+        setAllStudents(studentsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast.error('Failed to load data from server');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const filteredStudents = allStudents.filter(student => {
     const matchesDept = !selectedDepartment || student.department === selectedDepartment;

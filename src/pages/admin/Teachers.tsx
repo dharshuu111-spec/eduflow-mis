@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/layout/Header';
-import { departments, teachers } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { Plus, Search, Users, ChevronRight, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import { Teacher } from '@/types';
 
 const Teachers = () => {
+  const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -19,21 +20,51 @@ const Teachers = () => {
 
   const filteredTeachers = teachers.filter(teacher => {
     const matchesDept = !selectedDepartment || teacher.department === selectedDepartment;
-    const matchesSearch = !searchQuery || 
+    const matchesSearch = !searchQuery ||
       teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       teacher.employeeId.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesDept && matchesSearch;
   });
 
-  const handleAddTeacher = (e: React.FormEvent) => {
+  const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTeacher.name || !newTeacher.employeeId || !newTeacher.email) {
       toast.error('Please fill in all required fields');
       return;
     }
-    toast.success('Teacher added successfully!');
-    setShowAddModal(false);
-    setNewTeacher({ name: '', employeeId: '', email: '', phone: '', subjects: '' });
+
+    try {
+      const response = await fetch('http://localhost:3001/api/teachers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          employee_id: newTeacher.employeeId,
+          name: newTeacher.name,
+          department: selectedDepartment,
+          email: newTeacher.email,
+          phone: newTeacher.phone,
+          subjects: newTeacher.subjects ? newTeacher.subjects.split(',').map(s => s.trim()) : [],
+        }),
+      });
+
+      if (response.ok) {
+        toast.success('Teacher added successfully!');
+        setShowAddModal(false);
+        setNewTeacher({ name: '', employeeId: '', email: '', phone: '', subjects: '' });
+
+        // Refresh teachers list
+        const teachersRes = await fetch('http://localhost:3001/api/teachers');
+        const teachersData = await teachersRes.json();
+        setTeachers(teachersData);
+      } else {
+        toast.error('Failed to add teacher');
+      }
+    } catch (error) {
+      console.error('Error adding teacher:', error);
+      toast.error('Failed to add teacher');
+    }
   };
 
   if (!selectedDepartment) {

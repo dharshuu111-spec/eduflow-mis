@@ -1,17 +1,52 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Header from '@/components/layout/Header';
-import { classActivities, subjectLegends } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { Search, Download, Calendar, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { Department, ClassActivity } from '@/types';
 
 const Reports = () => {
   const [startDate, setStartDate] = useState('2025-04-01');
   const [endDate, setEndDate] = useState('2025-04-30');
+  const [department, setDepartment] = useState('');
   const [instructor, setInstructor] = useState('');
   const [section, setSection] = useState('');
   const [showResults, setShowResults] = useState(false);
+
+  // State for API data
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [classActivities, setClassActivities] = useState<ClassActivity[]>([]);
+  const [subjectLegends, setSubjectLegends] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [departmentsRes, activitiesRes, legendsRes] = await Promise.all([
+          fetch('http://localhost:3001/api/departments'),
+          fetch('http://localhost:3001/api/class-activities'),
+          fetch('http://localhost:3001/api/subject-legends')
+        ]);
+
+        const departmentsData = await departmentsRes.json();
+        const activitiesData = await activitiesRes.json();
+        const legendsData = await legendsRes.json();
+
+        setDepartments(departmentsData);
+        setClassActivities(activitiesData);
+        setSubjectLegends(legendsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast.error('Failed to load data from server');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const handleSearch = () => {
     if (!startDate || !endDate) {
@@ -23,7 +58,7 @@ const Reports = () => {
 
   const handleExport = () => {
     // Prepare data for Excel
-    const exportData = classActivities.map((activity) => {
+    const exportData = filteredActivities.map((activity) => {
       const date = new Date(activity.date);
       return {
         'Date': date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }),
@@ -62,6 +97,49 @@ const Reports = () => {
 
   const instructors = Array.from(new Set(subjectLegends.filter(l => l.name.includes('Mr.') || l.name.includes('Mrs.') || l.name.includes('Ms.')).map(l => l.name)));
 
+  // Hierarchical filtering: instructors filtered by selected department
+  const filteredInstructors = useMemo(() => {
+    if (!department) {
+      return instructors;
+    }
+    // Get instructors who have activities in the selected department
+    const deptActivities = classActivities.filter(activity =>
+      activity.batch.includes(department)
+    );
+    return Array.from(new Set(deptActivities.map(activity => activity.teacherName)));
+  }, [department, instructors]);
+
+  // Filter activities based on all selected criteria
+  const filteredActivities = useMemo(() => {
+    return classActivities.filter(activity => {
+      const activityDate = new Date(activity.date);
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+
+      // Date range filter
+      if (activityDate < start || activityDate > end) {
+        return false;
+      }
+
+      // Department filter
+      if (department && !activity.batch.includes(department)) {
+        return false;
+      }
+
+      // Instructor filter
+      if (instructor && activity.teacherName !== instructor) {
+        return false;
+      }
+
+      // Section filter
+      if (section && !activity.batch.includes(section)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [startDate, endDate, department, instructor, section]);
+
   return (
     <div className="animate-fade-in">
       <Header 
@@ -76,7 +154,7 @@ const Reports = () => {
           Instructor Time Table Search
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">Start Date</label>
             <input
@@ -96,6 +174,19 @@ const Reports = () => {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Department</label>
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              className="input-field"
+            >
+              <option value="">All Departments</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.code}>{dept.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-foreground mb-2">Instructor</label>
             <select
               value={instructor}
@@ -103,7 +194,7 @@ const Reports = () => {
               className="input-field"
             >
               <option value="">All Instructors</option>
-              {instructors.map((inst) => (
+              {filteredInstructors.map((inst) => (
                 <option key={inst} value={inst}>{inst}</option>
               ))}
             </select>
@@ -158,7 +249,7 @@ const Reports = () => {
                 </tr>
               </thead>
               <tbody>
-                {classActivities.map((activity, index) => {
+                {filteredActivities.map((activity, index) => {
                   const date = new Date(activity.date);
                   const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
                   const formattedDate = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
