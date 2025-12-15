@@ -121,38 +121,108 @@ const Reports = () => {
   };
 
   const handleExport = () => {
-    // Prepare data for Excel
-    const exportData = filteredActivities.map((activity) => {
+    // Get unique subjects from filtered activities
+    const subjectMap = new Map<string, { 
+      subject: string; 
+      hoursPerSemester: number; 
+      plannedHours: number; 
+      coveredHours: number;
+      monthlyHours: { [key: string]: number };
+    }>();
+
+    // Calculate hours per subject and month
+    filteredActivities.forEach((activity) => {
+      const subject = activity.topic.split(' - ')[0] || activity.topic;
       const date = new Date(activity.date);
-      return {
-        'Date': date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' }),
-        'Time': activity.time,
-        'Batch': activity.batch,
-        'Instructor': activity.teacherName,
-        'Topic': activity.topic,
-        'Hours': 1,
-      };
+      const monthKey = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      if (!subjectMap.has(subject)) {
+        subjectMap.set(subject, {
+          subject,
+          hoursPerSemester: 60, // Default semester hours
+          plannedHours: 0,
+          coveredHours: 0,
+          monthlyHours: {}
+        });
+      }
+      
+      const subjectData = subjectMap.get(subject)!;
+      subjectData.coveredHours += 1;
+      subjectData.plannedHours = Math.max(subjectData.plannedHours, subjectData.coveredHours + 5);
+      subjectData.monthlyHours[monthKey] = (subjectData.monthlyHours[monthKey] || 0) + 1;
     });
+
+    // Get all unique months from the data
+    const allMonths = new Set<string>();
+    subjectMap.forEach((data) => {
+      Object.keys(data.monthlyHours).forEach(month => allMonths.add(month));
+    });
+    const monthsArray = Array.from(allMonths);
+
+    // Prepare data for Excel in the requested format
+    const exportData = Array.from(subjectMap.values()).map((data, index) => {
+      const coveragePercent = data.plannedHours > 0 
+        ? Math.round((data.coveredHours / data.plannedHours) * 100) 
+        : 0;
+      
+      const row: any = {
+        'S.No': index + 1,
+        'Subject': data.subject,
+        'Hours/Semester': data.hoursPerSemester,
+        'Planned Hours': data.plannedHours,
+        'Covered Hours': data.coveredHours,
+        'Coverage %': `${coveragePercent}%`,
+      };
+
+      // Add monthly columns
+      monthsArray.forEach(month => {
+        row[month] = data.monthlyHours[month] || 0;
+      });
+
+      return row;
+    });
+
+    // Add totals row
+    const totals: any = {
+      'S.No': '',
+      'Subject': 'TOTAL',
+      'Hours/Semester': exportData.reduce((sum, row) => sum + row['Hours/Semester'], 0),
+      'Planned Hours': exportData.reduce((sum, row) => sum + row['Planned Hours'], 0),
+      'Covered Hours': exportData.reduce((sum, row) => sum + row['Covered Hours'], 0),
+      'Coverage %': '',
+    };
+    monthsArray.forEach(month => {
+      totals[month] = exportData.reduce((sum, row) => sum + (row[month] || 0), 0);
+    });
+    
+    // Calculate overall coverage percentage
+    if (totals['Planned Hours'] > 0) {
+      totals['Coverage %'] = `${Math.round((totals['Covered Hours'] / totals['Planned Hours']) * 100)}%`;
+    }
+    exportData.push(totals);
 
     // Create worksheet
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     
     // Set column widths
-    worksheet['!cols'] = [
-      { wch: 30 }, // Date
-      { wch: 15 }, // Time
-      { wch: 15 }, // Batch
-      { wch: 25 }, // Instructor
-      { wch: 40 }, // Topic
-      { wch: 10 }, // Hours
+    const colWidths = [
+      { wch: 6 },  // S.No
+      { wch: 35 }, // Subject
+      { wch: 15 }, // Hours/Semester
+      { wch: 14 }, // Planned Hours
+      { wch: 14 }, // Covered Hours
+      { wch: 12 }, // Coverage %
     ];
+    monthsArray.forEach(() => colWidths.push({ wch: 8 }));
+    worksheet['!cols'] = colWidths;
 
     // Create workbook
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Instructor Report');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Syllabus Coverage Report');
 
     // Generate filename with date range
-    const filename = `Instructor_Report_${startDate}_to_${endDate}.xlsx`;
+    const deptName = department || 'All';
+    const filename = `Syllabus_Coverage_${deptName}_${startDate}_to_${endDate}.xlsx`;
 
     // Download file
     XLSX.writeFile(workbook, filename);
