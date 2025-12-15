@@ -3,9 +3,11 @@ import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { Plus, Search, Users, ChevronRight, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';
-import { Teacher } from '@/types';
+import { Teacher, Department } from '@/types';
+import { departments as mockDepartments, teachers as initialTeachers } from '@/data/mockData';
 
 const Teachers = () => {
+  const [departments, setDepartments] = useState<Department[]>(mockDepartments);
   const [teachers, setTeachers] = useState<Teacher[]>(initialTeachers);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
