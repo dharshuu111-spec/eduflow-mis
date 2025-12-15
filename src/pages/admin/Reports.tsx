@@ -5,8 +5,11 @@ import { Search, Download, Calendar, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { Department, ClassActivity } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { departments as mockDepartments, classActivities as mockActivities, subjectLegends as mockLegends } from '@/data/mockData';
 
 const Reports = () => {
+  const { user } = useAuth();
   const [startDate, setStartDate] = useState('2025-04-01');
   const [endDate, setEndDate] = useState('2025-04-30');
   const [department, setDepartment] = useState('');
@@ -14,39 +17,100 @@ const Reports = () => {
   const [section, setSection] = useState('');
   const [showResults, setShowResults] = useState(false);
 
-  // State for API data
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [classActivities, setClassActivities] = useState<ClassActivity[]>([]);
-  const [subjectLegends, setSubjectLegends] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // State for data
+  const [departments, setDepartments] = useState<Department[]>(mockDepartments);
+  const [classActivities, setClassActivities] = useState<ClassActivity[]>(mockActivities);
+  const [subjectLegends, setSubjectLegends] = useState<any[]>(mockLegends);
 
-  // Fetch data from API
+  // Get available departments based on role
+  const availableDepartments = useMemo(() => {
+    if (!user) return [];
+    
+    switch (user.role) {
+      case 'admin':
+        // Admin can see all departments
+        return departments;
+      case 'hod':
+        // HOD can only see their department
+        return departments.filter(dept => dept.code === user.department);
+      case 'class_coordinator':
+        // Coordinator can only see their department
+        return departments.filter(dept => dept.code === user.department);
+      case 'subject_incharge':
+        // Subject incharge can only see their department
+        return departments.filter(dept => dept.code === user.department);
+      default:
+        return [];
+    }
+  }, [user, departments]);
+
+  // Set default department based on role
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [departmentsRes, activitiesRes, legendsRes] = await Promise.all([
-          fetch('http://localhost:3001/api/departments'),
-          fetch('http://localhost:3001/api/class-activities'),
-          fetch('http://localhost:3001/api/subject-legends')
-        ]);
+    if (user && user.role !== 'admin' && user.department) {
+      setDepartment(user.department);
+    }
+  }, [user]);
 
-        const departmentsData = await departmentsRes.json();
-        const activitiesData = await activitiesRes.json();
-        const legendsData = await legendsRes.json();
+  // Get available instructors based on selected department and role
+  const availableInstructors = useMemo(() => {
+    if (!user) return [];
 
-        setDepartments(departmentsData);
-        setClassActivities(activitiesData);
-        setSubjectLegends(legendsData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        toast.error('Failed to load data from server');
-      } finally {
-        setLoading(false);
-      }
-    };
+    // Get instructors from activities
+    let instructorsList: string[] = [];
+    
+    if (user.role === 'subject_incharge') {
+      // Subject incharge can only see their own data
+      return [user.name];
+    }
 
-    fetchData();
-  }, []);
+    // Filter activities based on department
+    const deptFilter = department || user?.department;
+    if (deptFilter) {
+      const deptActivities = classActivities.filter(activity =>
+        activity.batch.includes(deptFilter)
+      );
+      instructorsList = Array.from(new Set(deptActivities.map(activity => activity.teacherName)));
+    } else {
+      instructorsList = Array.from(new Set(
+        subjectLegends
+          .filter(l => l.name.includes('Mr.') || l.name.includes('Mrs.') || l.name.includes('Ms.'))
+          .map(l => l.name)
+      ));
+    }
+
+    // For class coordinator, filter to only staff allocated to their class
+    if (user.role === 'class_coordinator' && user.section) {
+      const sectionActivities = classActivities.filter(activity =>
+        activity.batch.includes(user.department!) && 
+        activity.batch.includes(user.section!)
+      );
+      instructorsList = Array.from(new Set(sectionActivities.map(activity => activity.teacherName)));
+    }
+
+    return instructorsList;
+  }, [user, department, classActivities, subjectLegends]);
+
+  // Get available sections based on role
+  const availableSections = useMemo(() => {
+    if (!user) return ['A', 'B'];
+    
+    if (user.role === 'class_coordinator' && user.section) {
+      // Coordinator can only see their section
+      return [user.section];
+    }
+    
+    return ['A', 'B'];
+  }, [user]);
+
+  // Set default section for class coordinator
+  useEffect(() => {
+    if (user && user.role === 'class_coordinator' && user.section) {
+      setSection(user.section);
+    }
+    if (user && user.role === 'subject_incharge') {
+      setInstructor(user.name);
+    }
+  }, [user]);
 
   const handleSearch = () => {
     if (!startDate || !endDate) {
@@ -95,21 +159,7 @@ const Reports = () => {
     toast.success('Report downloaded successfully!');
   };
 
-  const instructors = Array.from(new Set(subjectLegends.filter(l => l.name.includes('Mr.') || l.name.includes('Mrs.') || l.name.includes('Ms.')).map(l => l.name)));
-
-  // Hierarchical filtering: instructors filtered by selected department
-  const filteredInstructors = useMemo(() => {
-    if (!department) {
-      return instructors;
-    }
-    // Get instructors who have activities in the selected department
-    const deptActivities = classActivities.filter(activity =>
-      activity.batch.includes(department)
-    );
-    return Array.from(new Set(deptActivities.map(activity => activity.teacherName)));
-  }, [department, instructors]);
-
-  // Filter activities based on all selected criteria
+  // Filter activities based on all selected criteria and role
   const filteredActivities = useMemo(() => {
     return classActivities.filter(activity => {
       const activityDate = new Date(activity.date);
@@ -121,30 +171,63 @@ const Reports = () => {
         return false;
       }
 
-      // Department filter
+      // Role-based filtering
+      if (user) {
+        // HOD can only see their department
+        if (user.role === 'hod' && user.department && !activity.batch.includes(user.department)) {
+          return false;
+        }
+        
+        // Class coordinator can only see their class/section
+        if (user.role === 'class_coordinator') {
+          if (user.department && !activity.batch.includes(user.department)) {
+            return false;
+          }
+          if (user.section && !activity.batch.includes(user.section)) {
+            return false;
+          }
+        }
+        
+        // Subject incharge can only see their own data
+        if (user.role === 'subject_incharge' && activity.teacherName !== user.name) {
+          return false;
+        }
+      }
+
+      // Additional filters from UI
       if (department && !activity.batch.includes(department)) {
         return false;
       }
 
-      // Instructor filter
       if (instructor && activity.teacherName !== instructor) {
         return false;
       }
 
-      // Section filter
       if (section && !activity.batch.includes(section)) {
         return false;
       }
 
       return true;
     });
-  }, [startDate, endDate, department, instructor, section]);
+  }, [startDate, endDate, department, instructor, section, user, classActivities]);
+
+  // Get role label for display
+  const getRoleLabel = () => {
+    if (!user) return '';
+    switch (user.role) {
+      case 'admin': return 'All Courses Access';
+      case 'hod': return `HOD - ${user.department}`;
+      case 'class_coordinator': return `Coordinator - ${user.department} Section ${user.section}`;
+      case 'subject_incharge': return `Subject Incharge - ${user.name}`;
+      default: return '';
+    }
+  };
 
   return (
     <div className="animate-fade-in">
       <Header 
         title="Reports / MIS" 
-        subtitle="Generate and export instructor timetable reports"
+        subtitle={`Generate and export instructor timetable reports • ${getRoleLabel()}`}
       />
 
       {/* Search Form */}
@@ -174,27 +257,32 @@ const Reports = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Department</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Course/Department</label>
             <select
               value={department}
-              onChange={(e) => setDepartment(e.target.value)}
+              onChange={(e) => {
+                setDepartment(e.target.value);
+                setInstructor(''); // Reset instructor when department changes
+              }}
               className="input-field"
+              disabled={user?.role !== 'admin'}
             >
-              <option value="">All Departments</option>
-              {departments.map((dept) => (
-                <option key={dept.id} value={dept.code}>{dept.name}</option>
+              {user?.role === 'admin' && <option value="">All Departments</option>}
+              {availableDepartments.map((dept) => (
+                <option key={dept.id} value={dept.code}>{dept.code} - {dept.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Instructor</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Staff/Instructor</label>
             <select
               value={instructor}
               onChange={(e) => setInstructor(e.target.value)}
               className="input-field"
+              disabled={user?.role === 'subject_incharge'}
             >
-              <option value="">All Instructors</option>
-              {filteredInstructors.map((inst) => (
+              {user?.role !== 'subject_incharge' && <option value="">All Instructors</option>}
+              {availableInstructors.map((inst) => (
                 <option key={inst} value={inst}>{inst}</option>
               ))}
             </select>
@@ -205,10 +293,12 @@ const Reports = () => {
               value={section}
               onChange={(e) => setSection(e.target.value)}
               className="input-field"
+              disabled={user?.role === 'class_coordinator'}
             >
-              <option value="">#ALL#</option>
-              <option value="A">Section A</option>
-              <option value="B">Section B</option>
+              {user?.role !== 'class_coordinator' && <option value="">#ALL#</option>}
+              {availableSections.map((sec) => (
+                <option key={sec} value={sec}>Section {sec}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -218,7 +308,7 @@ const Reports = () => {
             <Search className="w-4 h-4" />
             Search
           </button>
-          {showResults && (
+          {showResults && filteredActivities.length > 0 && (
             <button onClick={handleExport} className="btn-secondary flex items-center gap-2 bg-success/20 text-success border-success/30 hover:bg-success/30">
               <FileSpreadsheet className="w-4 h-4" />
               Export to Excel
@@ -233,68 +323,72 @@ const Reports = () => {
           <div className="bg-warning/20 p-4 border-b border-border">
             <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
               <Calendar className="w-5 h-5 text-warning" />
-              ACTIVITIES
+              ACTIVITIES ({filteredActivities.length} records)
             </h3>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left p-4 font-medium text-muted-foreground">DATE</th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">TIME</th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">BATCH</th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">TOPIC</th>
-                  <th className="text-left p-4 font-medium text-muted-foreground">ACTION</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredActivities.map((activity, index) => {
-                  const date = new Date(activity.date);
-                  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-                  const formattedDate = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                  const dayNum = date.getDate();
+          {filteredActivities.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left p-4 font-medium text-muted-foreground">DATE</th>
+                    <th className="text-left p-4 font-medium text-muted-foreground">TIME</th>
+                    <th className="text-left p-4 font-medium text-muted-foreground">BATCH</th>
+                    <th className="text-left p-4 font-medium text-muted-foreground">INSTRUCTOR</th>
+                    <th className="text-left p-4 font-medium text-muted-foreground">TOPIC</th>
+                    <th className="text-left p-4 font-medium text-muted-foreground">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredActivities.map((activity, index) => {
+                    const date = new Date(activity.date);
+                    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+                    const formattedDate = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    const dayNum = date.getDate();
 
-                  return (
-                    <tr key={activity.id} className="table-row">
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl font-bold text-foreground">{dayNum}</span>
-                          <div>
-                            <p className="font-medium text-foreground">{dayName}</p>
-                            <p className="text-xs text-muted-foreground">{formattedDate}</p>
+                    return (
+                      <tr key={activity.id} className="table-row">
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl font-bold text-foreground">{dayNum}</span>
+                            <div>
+                              <p className="font-medium text-foreground">{dayName}</p>
+                              <p className="text-xs text-muted-foreground">{formattedDate}</p>
+                            </div>
                           </div>
-                        </div>
-                        {index === 0 && (
-                          <button className="mt-2 px-3 py-1 bg-info text-info-foreground text-sm rounded-lg">
-                            Day Notes
-                          </button>
-                        )}
-                      </td>
-                      <td className="p-4 text-muted-foreground">{activity.time}</td>
-                      <td className="p-4">
-                        <span className="text-info hover:underline cursor-pointer">{activity.batch}</span>
-                      </td>
-                      <td className="p-4">
-                        <p className="font-medium text-foreground">{activity.teacherName}</p>
-                        <p className="text-sm text-muted-foreground">{activity.topic}</p>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          <button className="px-3 py-1.5 bg-warning/20 text-warning text-sm rounded-lg hover:bg-warning/30 transition-colors">
-                            Attendance
-                          </button>
-                          <button className="px-3 py-1.5 bg-success/20 text-success text-sm rounded-lg hover:bg-success/30 transition-colors">
-                            Class Activity
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="p-4 text-muted-foreground">{activity.time}</td>
+                        <td className="p-4">
+                          <span className="text-info hover:underline cursor-pointer">{activity.batch}</span>
+                        </td>
+                        <td className="p-4 font-medium text-foreground">{activity.teacherName}</td>
+                        <td className="p-4 text-muted-foreground">{activity.topic}</td>
+                        <td className="p-4">
+                          <div className="flex gap-2">
+                            <button className="px-3 py-1.5 bg-warning/20 text-warning text-sm rounded-lg hover:bg-warning/30 transition-colors">
+                              Attendance
+                            </button>
+                            <button className="px-3 py-1.5 bg-success/20 text-success text-sm rounded-lg hover:bg-success/30 transition-colors">
+                              Class Activity
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-12 text-center">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                <FileSpreadsheet className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-heading font-semibold text-lg text-foreground mb-2">No Records Found</h3>
+              <p className="text-muted-foreground">No activities match your search criteria</p>
+            </div>
+          )}
         </div>
       )}
 
